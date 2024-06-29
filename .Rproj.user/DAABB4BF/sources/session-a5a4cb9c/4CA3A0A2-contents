@@ -1,0 +1,29 @@
+zz = ep_telepules_eredmenyek_2009_2014_2019_2024 %>%
+  filter(EV %in% c(2019,2024) & grepl("FIDESZ",LISTA) & !grepl("összesen",TELEPÜLÉS)) %>%
+  mutate(szazalek=100*SZAVAZAT/n_erv_szav) %>%
+  select(EV,MEGYE,TELEPÜLÉS,n_valpolg_nevjegyz,szazalek,SZAVAZAT) %>%
+  group_by(MEGYE,TELEPÜLÉS) %>%
+  # mutate(n_valpolg_nevjegyz=n_valpolg_nevjegyz[EV %in% 2024]) %>%
+  # select(!n_valpolg_nevjegyz) %>%
+  mutate(telep_meret=factor(case_when(
+    n_valpolg_nevjegyz<=1000 ~ "<1000",
+    n_valpolg_nevjegyz>1000 & n_valpolg_nevjegyz<=5000 ~ "1000-5000",
+    n_valpolg_nevjegyz>5000 & n_valpolg_nevjegyz<=10000 ~ "5000-10000", 
+    n_valpolg_nevjegyz>10000 & n_valpolg_nevjegyz<=20000 & !grepl("Budap",TELEPÜLÉS) ~ "10000-20000", # 
+    n_valpolg_nevjegyz>20000 & n_valpolg_nevjegyz<=40000 & !grepl("Budap",TELEPÜLÉS) ~ "20000-40000", # 
+    n_valpolg_nevjegyz>40000 & n_valpolg_nevjegyz<=70000 & !grepl("Budap",TELEPÜLÉS) ~ "40000-70000",
+    n_valpolg_nevjegyz>70000 & !grepl("Budap",TELEPÜLÉS) ~ "70000+",
+    grepl("Budap",TELEPÜLÉS) ~ "Budapest"),
+    levels=c("<1000","1000-5000","5000-10000","10000-20000","20000-40000",
+             "40000-70000","70000+","Budapest"))) %>%
+  pivot_wider(names_from = EV,values_from = c(szazalek,SZAVAZAT,n_valpolg_nevjegyz)) %>%
+  mutate(delta_szazalek=szazalek_2024-szazalek_2019,
+         valtozas_szazalek=ifelse(szazalek_2019>szazalek_2024,"csökkent","nőtt"),
+         delta_szavazat=SZAVAZAT_2024-SZAVAZAT_2019,
+         valtozas_szavazat=ifelse(SZAVAZAT_2019>SZAVAZAT_2024,"csökkent","nőtt")) %>% 
+  group_by(telep_meret) %>%
+  mutate(sorrend=rank(n_valpolg_nevjegyz_2024,ties.method="first")) %>% # factor()
+  mutate(telep_meret=as.character(telep_meret),
+         telep_meret=ifelse(grepl("<1000",telep_meret),
+                            paste0(telep_meret," (választópolgár)"),telep_meret),
+         telep_meret=factor(telep_meret,levels=unique(telep_meret)))
