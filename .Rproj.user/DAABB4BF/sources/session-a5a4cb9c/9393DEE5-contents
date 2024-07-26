@@ -1,5 +1,0 @@
-ep_2019_2024_nvalpolg_fidesz_ellenzek %>%
-  pivot_longer(cols=c(SZAVAZAT,n_erv_szav),
-               names_to="lista_osszes",values_to="n_szavazat") %>%
-  mutate(lista_osszes=ifelse(lista_osszes %in% "n_erv_szav","összes",lista_aggreg)) %>%
-  select(!lista_aggreg)
