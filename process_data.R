@@ -182,3 +182,29 @@ unique(ep_telepules_eredmenyek_2009_2014_2019_2024$MEGYE)
 
 write_csv(ep_telepules_eredmenyek_2009_2014_2019_2024,
           file = "ep_telepules_eredmenyek_2009_2014_2019_2024.csv")
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+
+ogy_val_2022_egyeni <- read_csv("2022_ogy_val/Egyéni_szavazás_szkjkv.csv") %>%
+  group_by(MEGYE,TELEPÜLÉS,OEVK) %>% summarise()
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+# terkep
+library(jsonlite); library(sf)
+
+# source for geoJSON files: https://github.com/szabokrissz96/valterk
+
+my_sf <- read_sf(c("../ogy_eredmenyek/oevk.geo.json",
+                   "../ogy_eredmenyek/oevk.min.geo.json",
+                   "../ogy_eredmenyek/counties.geojson",
+                   "../ogy_eredmenyek/valasztokerulet_terkep_final3.geojson")[4])
+
+plot(st_geometry(my_sf))
+st_is_valid(my_sf,reason=T)
+st_make_valid(my_sf)
+
+#
+library(geojsonR)
+file_js = FROM_GeoJson(url_file_string ="../oevk.geo.json")
+file_js
