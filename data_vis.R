@@ -22,13 +22,15 @@ l_orszagos <- list()
 l_orszagos$eredmenyek <- ep_telepules_eredmenyek_2009_2014_2019_2024 %>%
   filter(EV %in% c(2019,2024) & !grepl("összesen",TELEPÜLÉS)) %>% 
   group_by(LISTA,EV) %>% summarise(SZAVAZAT=sum(SZAVAZAT)) %>% 
+  # group_by(EV) %>% mutate(szazalek=100*SZAVAZAT/sum(SZAVAZAT)) %>%
   pivot_wider(names_from = LISTA,values_from = SZAVAZAT) %>%
   mutate(FIDESZ_MiHazank=rowSums(select(.,matches("FIDESZ|Hazánk"))),
          ellenzek=rowSums(select(.,
-            matches("TISZA|MSZP|DK|Momentum|LMP|MKKP|Jobbik|MMN|2RK")),na.rm=T) ) %>%
-  pivot_longer(!c(EV),names_to = "LISTA",values_to = "SZAVAZAT") %>% arrange(EV,LISTA) %>%
-  group_by(EV) %>% # filter(!is.na(SZAVAZAT)) %>% 
-  mutate(szazalek=100*SZAVAZAT/sum(SZAVAZAT[grepl("ellenzék|FIDESZ_MiHazank",LISTA)])) %>%
+            matches("TISZA|MSZP|DK|Momentum|LMP|MKKP|Jobbik|MMN|2RK")),na.rm=T)) %>%
+  pivot_longer(!c(EV),names_to="LISTA",values_to="SZAVAZAT") %>% arrange(EV,LISTA) %>%
+  mutate(szavazat_kulonlista=ifelse(grepl("ellenz|FIDESZ_MiHazank",LISTA),NA,SZAVAZAT)) %>%
+  group_by(EV) %>% mutate(szazalek=100*SZAVAZAT/sum(szavazat_kulonlista,na.rm=T)) %>%
+  select(!szavazat_kulonlista) %>%
   pivot_wider(names_from = EV,values_from = c(SZAVAZAT,szazalek))
 
 l_orszagos$eredmenyek %>% 
@@ -43,6 +45,14 @@ l_telep_meretek <- list(nevek=c("<1000","1000-5000","5000-10000","10000-20000","
                               "40000-70000","70000+","Budapest"),
                       low_lims=c(0,1e3,5e3,1e4,2e4,4e4,7e4),
                       upp_lims=c(1e3,5e3,1e4,2e4,4e4,7e4))
+
+ellenzek_listak_2019_2024 <- ep_telepules_eredmenyek_2009_2014_2019_2024 %>%
+  filter(EV %in% c(2019,2024) & !grepl("Mi H|FIDESZ|MUNK|MEMO",LISTA)) %>%
+  group_by(EV,LISTA) %>%
+  summarise(EV=unique(EV),
+            LISTA=gsub("Párbeszéd","PM",unique(LISTA)) )
+# gsub("LMP+","LMP+\n",gsub(" Párt","",gsub("Párbeszéd","PM",unique(LISTA)))) )
+
 
 # create dataframe
 l_plot_fidesz_indiv_telep <- list()
@@ -267,9 +277,10 @@ l_plot_swing$szavazatszam$dummy_df_xlims = l_plot_swing$df_2019_24_swing_telep %
   slice(rep(1:n(), each=2)) %>%
   mutate(szavszam_kulonbseg_2019=NA) %>%
   mutate(szavszam_kulonbseg_2019=case_when(
-    grepl("20000-40000",telep_meret) ~ -14,
-    grepl("40000-70000",telep_meret) ~ -12,
-    grepl("70000+|Budapest",telep_meret) ~ -40,
+    grepl("20000-40000",telep_meret) ~ 9,
+    grepl("40000-70000",telep_meret) ~ 9,
+    grepl("70000+",telep_meret) ~ 17,
+    grepl("Budapest",telep_meret) ~ 4,
     .default=szavszam_kulonbseg_2019))
 # text labels
 l_plot_swing$szavazatszam$df_text = l_plot_swing$df_2019_24_swing_telep %>%
@@ -277,7 +288,7 @@ l_plot_swing$szavazatszam$df_text = l_plot_swing$df_2019_24_swing_telep %>%
              n_valpolg_nevjegyz>20e3 | 
              (n_valpolg_nevjegyz>5e3 & delta_szavazat>0) ) %>%
   group_by(TELEPÜLÉS) %>%
-  mutate(xadj=szavszam_kulonbseg_2024/1e3,
+  mutate(xadj=szavszam_kulonbseg_2019/1e3,
          TELEPÜLÉS=gsub("Budapest ","",TELEPÜLÉS))
 
 # PLOT FIDESZ vs ellenzek szavazatszam-kulonbseg valtozas
@@ -293,10 +304,14 @@ ggplot(aes(color=valtozas_szavazat)) +
              color=NA,show.legend=F) +
   geom_text(data=l_plot_swing$szavazatszam$df_text,
             aes(x=xadj,y=sorrend,label=TELEPÜLÉS,
-              hjust=ifelse(szavszam_kulonbseg_2024>szavszam_kulonbseg_2024,-0.1,1.1)),
+              hjust=ifelse(szavszam_kulonbseg_2019<szavszam_kulonbseg_2024,1.1,-0.01)),
+            # hjust=ifelse(szazalek_kulonbseg_2019<szazalek_kulonbseg_2024,1.1,-0.03)),
             size=4,show.legend=F,alpha=1) +
   geom_vline(xintercept = 0,linewidth=2/3,color="black") +
-  labs(color="",alpha="") + 
+  labs(color="szavazatszám-\nkülönbség (2024)",alpha="szavazatszám-\nkülönbség (2024)",
+       caption=paste0("ellenzék 2019=",
+                      paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2019]),collapse="+"),"\n",
+                      "ellenzék 2024=",paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2024]),collapse="+")) ) + 
   scale_color_manual(values = c("darkgreen","#B33C00")) + 
   scale_alpha_manual(values = c(1/2,1)) +
   xlab("szavazatszám-különbség (ezer) 2019→2024") +
@@ -310,6 +325,56 @@ if (F) {
 }
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+# ugyanez de szinkod: Fidesz>ellenzek
+
+
+l_plot_swing$szavazatszam$dummy_df_xlims$szavszam_kulonbseg_2019[
+  grepl("10000",l_plot_swing$szavazatszam$dummy_df_xlims$telep_meret)] <- 3.5
+# text labels
+l_plot_swing$szavazatszam$df_text_fideszelony <- l_plot_swing$df_2019_24_swing_telep %>% 
+  mutate(valtozas_szavazat=ifelse(szavszam_kulonbseg_2024>0,
+                                  "FIDESZ>ellenzék","FIDESZ<ellenzék")) %>%
+  filter(grepl("Budapest",telep_meret) |
+           n_valpolg_nevjegyz>20e3 | 
+           (n_valpolg_nevjegyz>10e3 & szavszam_kulonbseg_2024>0) ) %>%
+  group_by(TELEPÜLÉS) %>%
+  mutate(xadj=szavszam_kulonbseg_2019/1e3,
+         TELEPÜLÉS=gsub("Budapest ","",TELEPÜLÉS))
+
+# PLOT FIDESZ vs ellenzek szavazatszam-kulonbseg valtozas
+l_plot_swing$df_2019_24_swing_telep %>%
+  mutate(valtozas_szavazat=ifelse(szavszam_kulonbseg_2024>0,
+                                  "FIDESZ>ellenzék","FIDESZ<ellenzék")) %>%
+ggplot(aes(color=valtozas_szavazat)) + 
+  facet_wrap(~telep_meret,scales="free",nrow=2) + # 
+  geom_segment(aes(x=szavszam_kulonbseg_2019/1e3,xend=szavszam_kulonbseg_2024/1e3,
+                   y=sorrend,yend=sorrend,alpha=valtozas_szavazat),
+               arrow=arrow(length=unit(0.15,"cm")) ) + # 
+  geom_point(data=l_plot_swing$szavazatszam$dummy_df_xlims,
+             aes(x=szavszam_kulonbseg_2019,y=sorrend), # x axis limits
+             color=NA,show.legend=F) +
+  geom_text(data=l_plot_swing$szavazatszam$df_text_fideszelony,
+            aes(x=xadj,y=sorrend,label=TELEPÜLÉS,
+                hjust=ifelse(szavszam_kulonbseg_2019<szavszam_kulonbseg_2024,1.1,-0.01)),
+            size=4,show.legend=F,alpha=1) +
+  geom_vline(xintercept = 0,linewidth=2/3,color="black") +
+  labs(color="szavazatszám-\nkülönbség (2024)",alpha="szavazatszám-\nkülönbség (2024)",
+       caption=paste0("ellenzék 2019=",
+            paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2019]),collapse="+"),"\n",
+                  "ellenzék 2024=",paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2024]),collapse="+")) ) + 
+  scale_color_manual(values = c("darkgreen","#B33C00")) + 
+  scale_alpha_manual(values = c(1/2,1)) +
+  xlab("szavazatszám-különbség (ezer) 2019→2024") +
+  ylab("sorrend választópolgárok száma szerint (2024) →") + 
+  ggtitle("FIDESZ vs. ellenzék szavazatszám-különbség (ezer) 2019→2024") +
+  theme_bw() + val_theme
+
+# SAVE
+if (F) {
+  "PLOTS/fideszellenzek_2019_2024_valtozas_szavszamkulonb_indiv_telep_colorcode_szavsamkulonb.png" %>%
+    ggsave(width=40,height=28,units="cm")
+}
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # SZAZALEK-KULONBSEG valtozas 2019 -> 2024
 
 # dummy/text-label DFs
@@ -319,10 +384,10 @@ l_plot_swing$szazalek$dummy_df_xlims = l_plot_swing$df_2019_24_swing_telep %>%
   slice(rep(1:n(), each=2)) %>%
   mutate(szazalek_kulonbseg_2019=NA) %>%
   mutate(szazalek_kulonbseg_2019=case_when(
-    grepl("20000-40000",telep_meret) ~ -55,
-    grepl("40000-70000",telep_meret) ~ -42,
-    grepl("70000+",telep_meret) ~ -45,
-    grepl("Budapest",telep_meret) ~ -48,
+    grepl("20000-40000",telep_meret) ~ 44,
+    grepl("40000-70000",telep_meret) ~ 35,
+    grepl("70000+",telep_meret) ~ 36,
+    # grepl("Budapest",telep_meret) ~ -48,
     .default=szazalek_kulonbseg_2019))
 # text labels
 l_plot_swing$szazalek$df_text <- l_plot_swing$df_2019_24_swing_telep %>%
@@ -330,7 +395,7 @@ l_plot_swing$szazalek$df_text <- l_plot_swing$df_2019_24_swing_telep %>%
            n_valpolg_nevjegyz>20e3 | 
            (n_valpolg_nevjegyz>5e3 & delta_szazalek>0) ) %>%
   group_by(TELEPÜLÉS) %>%
-  mutate(xadj=szazalek_kulonbseg_2024,
+  mutate(xadj=szazalek_kulonbseg_2019,
          TELEPÜLÉS=gsub("Budapest ","",TELEPÜLÉS)) %>%
   select(sorrend,TELEPÜLÉS,telep_meret,n_valpolg_nevjegyz,valtozas_szazalek,
          szazalek_kulonbseg_2019,szazalek_kulonbseg_2024,xadj)
@@ -347,10 +412,12 @@ ggplot(aes(color=valtozas_szazalek)) +
              color=NA,show.legend=F) +
   geom_text(data=l_plot_swing$szazalek$df_text,
             aes(x=xadj,y=sorrend,label=TELEPÜLÉS,
-                hjust=ifelse(szazalek_kulonbseg_2019<szazalek_kulonbseg_2024,-0.1,1.1)),
+                hjust=ifelse(szazalek_kulonbseg_2019<szazalek_kulonbseg_2024,1.1,-0.03)),
             size=4,show.legend=F,alpha=1) +
   geom_vline(xintercept = 0,linewidth=2/3,color="black") +
-  labs(color="",alpha="") + 
+  labs(color="",alpha="",caption=paste0("ellenzék 2019=",
+          paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2019]),collapse="+"),"\n",
+          "ellenzék 2024=",paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2024]),collapse="+"))) + 
   scale_color_manual(values = c("darkgreen","#B33C00")) + 
   scale_alpha_manual(values = c(1/2,1)) +
   xlab("százalék-különbség 2019→2024") +
@@ -366,19 +433,19 @@ if (F) {
 # uez a plot, de a szinkod a FIDESZ elonyt jeloli
 l_plot_swing$szazalek$df_text_fideszelony <- l_plot_swing$df_2019_24_swing_telep %>% 
   mutate(valtozas_szazalek=ifelse(szazalek_kulonbseg_2024>0,
-                      "FIDESZ>ellenzek","FIDESZ<ellenzek")) %>%
+                      "FIDESZ>ellenzék","FIDESZ<ellenzék")) %>%
   filter(grepl("Budapest",telep_meret) |
            n_valpolg_nevjegyz>20e3 | 
            (n_valpolg_nevjegyz>10e3 & szazalek_kulonbseg_2024>0) ) %>%
   group_by(TELEPÜLÉS) %>%
-  mutate(xadj=szazalek_kulonbseg_2024,
+  mutate(xadj=szazalek_kulonbseg_2019,
          TELEPÜLÉS=gsub("Budapest ","",TELEPÜLÉS)) %>%
   select(sorrend,TELEPÜLÉS,telep_meret,n_valpolg_nevjegyz,valtozas_szazalek,
          szazalek_kulonbseg_2019,szazalek_kulonbseg_2024,xadj)
 
 l_plot_swing$df_2019_24_swing_telep %>% 
   mutate(valtozas_szazalek=ifelse(szazalek_kulonbseg_2024>0,
-                                  "FIDESZ>ellenzek","FIDESZ<ellenzek")) %>%
+                                  "FIDESZ>ellenzék","FIDESZ<ellenzék")) %>%
 ggplot(aes(color=valtozas_szazalek)) + 
   facet_wrap(~telep_meret,scales="free",nrow=2) + # 
   geom_segment(aes(x=szazalek_kulonbseg_2019,xend=szazalek_kulonbseg_2024,
@@ -389,10 +456,12 @@ ggplot(aes(color=valtozas_szazalek)) +
              color=NA,show.legend=F) +
   geom_text(data=l_plot_swing$szazalek$df_text_fideszelony,
             aes(x=xadj,y=sorrend,label=TELEPÜLÉS,
-                hjust=ifelse(szazalek_kulonbseg_2019<szazalek_kulonbseg_2024,-0.1,1.1)),
+                hjust=ifelse(szazalek_kulonbseg_2019<szazalek_kulonbseg_2024,1.1,-0.03) ),
             size=4,show.legend=F,alpha=1) +
   geom_vline(xintercept = 0,linewidth=2/3,color="black") +
-  labs(color="",alpha="") + 
+  labs(color="",alpha="",caption=paste0("ellenzék 2019=",
+                paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2019]),collapse="+"),"\n",
+                "ellenzék 2024=",paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2024]),collapse="+"))) + 
   scale_color_manual(values = c("darkgreen","#B33C00")) + 
   scale_alpha_manual(values = c(1/2,1)) +
   xlab("százalék-különbség 2019→2024") +
@@ -405,7 +474,6 @@ if (F) {
     "fideszellenzek_2019_2024_valtozas_szazalekkulonb_indiv_telep_colorcode_fideszelony.png") %>%
     ggsave(width=40,height=28,units="cm")
 }
-
 
 # ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
@@ -445,12 +513,6 @@ ep_2019_2024_nvalpolg_fidesz_ellenzek = ep_telepules_eredmenyek_2009_2014_2019_2
   mutate(százalék=n_szavazat/n_szavazat[lista_osszes %in% "összes"]) %>%
   unique()
   
-ellenzek_listak_2019_2024 = ep_telepules_eredmenyek_2009_2014_2019_2024 %>%
-  filter(EV %in% c(2019,2024) & !grepl("Mi H|FIDESZ|MUNK|MEMO",LISTA)) %>%
-  group_by(EV,LISTA) %>%
-  summarise(EV=unique(EV),
-            LISTA=gsub("Párbeszéd","PM",unique(LISTA)) )
-# gsub("LMP+","LMP+\n",gsub(" Párt","",gsub("Párbeszéd","PM",unique(LISTA)))) )
 
 # abszolut szavazatszam valtozasa 2024 -> 2019
 ep_2019_2024_nvalpolg_fidesz_ellenzek %>%
@@ -482,7 +544,7 @@ ggplot(aes(y=y_pos,group=lista_osszes,color=lista_osszes)) +
   labs(color="2019→2024 változás",fill="2019 eredmény",
        caption=paste0("ellenzék 2019=",
         paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2019]),collapse="+"),"\n",
-        "ellenzék 2024=",paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2024]),collapse="+"))) + 
+        "ellenzék 2024=",paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2024]),collapse="+")) ) + 
   xlab("") + ylab("választópolgárok száma") +
   theme_bw() + val_theme + theme(plot.caption=element_text(size=12),
                                  plot.caption.position="plot")
