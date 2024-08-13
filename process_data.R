@@ -19,6 +19,40 @@ library(tidyverse)
   # SAVE
   write_csv(ep2024_szavazokori_eredmenyek,file = "2024_EP/ep2024_szavazokori_eredmenyek.csv")
   
+  ep2024_telep_szavkor_sorszam_eredmeny <- read_csv("2024_EP/ep2024_szavazokori_eredmenyek.csv") %>%
+    mutate(szavkor_sorszam=str_extract(`Szavazókör az.`, "(?<=\\d{3}-)\\d{3}(?=-\\d$)")) %>%
+    group_by(megye,Település,szavkor_sorszam) %>%
+    summarise(n_valpolg_nevjegyz=sum(AEP),
+              n_valpolg_megjel=sum(FEP),
+              n_erv_szav=sum(N),
+              n_ervtelen_szav=sum(M),
+              MEMO = sum(`1`),
+              LMP = sum(`2`),
+              `DK-MSZP-Párbeszéd` = sum(`3`),
+              `2RK Párt` = sum(`4`),
+              MMN= sum(`5`),
+              Momentum= sum(`6`),
+              `FIDESZ-KDNP`= sum(`7`),
+              Jobbik= sum(`8`),
+              TISZA= sum(`9`),
+              MKKP= sum(`10`),
+              `Mi Hazánk`=sum(`11`) ) %>%
+    rename(MEGYE=megye,TELEPÜLÉS=Település) %>%
+    pivot_longer(cols = !c(MEGYE,TELEPÜLÉS,szavkor_sorszam,n_valpolg_nevjegyz,
+                           n_valpolg_megjel,n_ervtelen_szav,n_erv_szav),
+                 names_to="LISTA",values_to="SZAVAZAT") %>%
+    mutate(TELEPÜLÉS=gsub("\\. kerület|\\.ker\\.","",TELEPÜLÉS)) %>%
+    rowwise() %>% 
+    mutate(TELEPÜLÉS=ifelse(grepl("Budapest",TELEPÜLÉS),
+              paste0("Budapest ",as.numeric(as.roman(gsub("Budapest ","",TELEPÜLÉS)))),
+              TELEPÜLÉS) ) %>%
+    mutate(MEGYE=tolower(MEGYE)) %>%
+    mutate(MEGYE=str_to_title(ifelse(MEGYE %in% names(megye_dict), 
+                                     megye_dict[names(megye_dict) %in% MEGYE],MEGYE)))
+  # SAVE
+  write_csv(ep2024_telep_szavkor_sorszam_eredmeny, 
+            file = "2024_EP/ep2024_telep_szavkor_sorszam_eredmeny.csv")
+  
   ep2024_telepules_eredmenyek <- ep2024_szavazokori_eredmenyek %>%
     group_by(megye,Település) %>%
     summarise(n_valpolg_nevjegyz=sum(AEP),
@@ -37,6 +71,8 @@ library(tidyverse)
             MKKP= sum(`10`),
             `Mi Hazánk`=sum(`11`) ) %>%
     arrange(megye,Település)
+  
+  
   
   ep2024_telepules_eredmenyek <- ep2024_telepules_eredmenyek %>% 
     rename(MEGYE=megye,TELEPÜLÉS=Település) %>%
@@ -134,6 +170,11 @@ write_csv(ep2009_telepules_eredmenyek,file = "2009_EP/ep2009_telepules_eredmenye
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 
+# l_ep_kulon <- list("2009"=read_csv("2009_EP/ep2009_telepules_eredmenyek.csv"),
+# "2014"=read_csv("2014_EP/ep2014_telepules_eredmenyek.csv"),
+# "2019"=read_csv("2019_EP/ep2019_telepules_eredmenyek.csv"),
+# "2024"=read_csv("2024_EP/ep2024_telepules_eredmenyek.csv") )
+
 # integrate all into one dataframe
 ep_telepules_eredmenyek_2009_2014_2019_2024 <- bind_rows(
   ep2009_telepules_eredmenyek %>% mutate(EV=2009),
@@ -144,7 +185,7 @@ ep_telepules_eredmenyek_2009_2014_2019_2024 <- bind_rows(
   select(!c(TELEPÜLÉS_ID,MEGYE_ID,`Település típusa`))
 
 ep_telepules_eredmenyek_2009_2014_2019_2024 <- ep_telepules_eredmenyek_2009_2014_2019_2024 %>%
-  mutate(TELEPÜLÉS=gsub(". kerület|.ker.","",TELEPÜLÉS)) %>%
+  mutate(TELEPÜLÉS=gsub("\\. kerület|\\.ker\\.","",TELEPÜLÉS)) %>%
   rowwise() %>% mutate(TELEPÜLÉS=ifelse(grepl("Budapest",TELEPÜLÉS),
                           paste0("Budapest ",as.numeric(as.roman(gsub("Budapest ","",TELEPÜLÉS)))),
                           TELEPÜLÉS) )
@@ -186,8 +227,33 @@ write_csv(ep_telepules_eredmenyek_2009_2014_2019_2024,
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 
-ogy_val_2022_egyeni <- read_csv("2022_ogy_val/Egyéni_szavazás_szkjkv.csv") %>%
+if (F) {
+# these seem incomplete
+  ogy_val_2022_egyeni <- read_csv("2022_ogy_val/Egyéni_szavazás_szkjkv.csv") %>%
   group_by(MEGYE,TELEPÜLÉS,OEVK) %>% summarise()
+
+oevk_telep_szavkor_sorszam <- read_csv("2024_EP/szavk_letolt.csv") %>% select(!`Szavazókör címe`) %>%
+  rename(TELEPÜLÉS=`Település neve`,MEGYE=`Főváros, megye neve`) %>%
+  mutate(TELEPÜLÉS=gsub("\\. kerület|\\.ker\\.","",TELEPÜLÉS),
+         TELEPÜLÉS=str_to_title(TELEPÜLÉS),
+         MEGYE=str_to_title(MEGYE)) %>%
+  rowwise() %>% 
+  mutate(TELEPÜLÉS=ifelse(grepl("Budapest",TELEPÜLÉS),
+                          paste0("Budapest ",as.numeric(as.roman(gsub("Budapest ","",TELEPÜLÉS)))),
+                          TELEPÜLÉS) )
+write_csv(oevk_telep_szavkor_sorszam,"oevk_telep_szavkor_sorszam.csv")
+}
+#
+# oevk_telep_szavkor_lista <- oevk_telep_szavkor_lista %>% 
+#   filter(!is.na(MEGYE)) %>% 
+#   select(MEGYE,OEVK,TELEPÜLÉS,SZAVAZÓKÖR) %>% rowwise() %>%
+#   mutate(TELEPÜLÉS=ifelse(grepl("Budapest",TELEPÜLÉS),
+#                           paste0("Budapest ",as.numeric(as.roman(gsub("Budapest ","",TELEPÜLÉS)))),
+#                           TELEPÜLÉS),
+#     TELEPÜLÉS=gsub("\\. kerület|\\.ker\\.","",TELEPÜLÉS),
+#          # TELEPÜLÉS=str_to_title(TELEPÜLÉS),
+#          MEGYE=str_to_title(MEGYE))
+oevk_telep_szavkor_lista <- read_csv("oevk_telep_szavkor_lista.csv")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # terkep
