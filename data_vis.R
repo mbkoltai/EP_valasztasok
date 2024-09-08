@@ -1,5 +1,5 @@
 # packages
-packs=c("tidyverse","ggrepel") # ,"RcppRoll","scales","lubridate","wpp2019","wesanderson"
+packs=c("tidyverse","ggrepel","plotly") # ,"RcppRoll","scales","lubridate","wpp2019","wesanderson"
 missing_packs = setdiff(packs, as.data.frame(installed.packages()[,c(1,3:4)])$Package)
 if (length(missing_packs)>0){ lapply(missing_packs,install.packages,character.only=TRUE) }
 lapply(packs,library,character.only=TRUE); rm(list = c("packs","missing_packs"))
@@ -18,11 +18,13 @@ ep_telepules_eredmenyek_2009_2014_2019_2024 <- read_csv(
 
 ### 
 # TELEPULES KATEGORIAK VAL szama szerint
-l_telep_meretek <- list(nevek=c("<1000","1000-5000","5000-10000","10000-20000","20000-40000",
+l_telep <- list()
+l_telep$meretek <- list(nevek=c("<1000","1000-5000","5000-10000","10000-20000","20000-40000",
                                 "40000-70000","70000+","Budapest"),
                         low_lims=c(0,1e3,5e3,1e4,2e4,4e4,7e4),
                         upp_lims=c(1e3,5e3,1e4,2e4,4e4,7e4))
-telep_roviditesek <- data.frame(TELEPÜLÉS=unique(l_plot_fidesz_indiv_telep$eredmeny$TELEPÜLÉS)) %>%
+l_telep$roviditesek <- data.frame(
+        TELEPÜLÉS=unique(ep_telepules_eredmenyek_2009_2014_2019_2024$TELEPÜLÉS)) %>%
   mutate(telep_rovid=case_when(grepl("Zalaegersz",TELEPÜLÉS) ~ "Zalaeg.",
     grepl("Kecskemét",TELEPÜLÉS) ~ "Kecskem.",
                                grepl("Kiskunfélegyháza",TELEPÜLÉS) ~ "Kiskunf.",
@@ -43,19 +45,19 @@ telep_roviditesek <- data.frame(TELEPÜLÉS=unique(l_plot_fidesz_indiv_telep$ere
                                grepl("Jászberény",TELEPÜLÉS) ~ "Jászb.",
                                .default = TELEPÜLÉS) )
 
-
 # ELLENZEKI LISTAK
-ellenzek_listak_2019_2024 <- ep_telepules_eredmenyek_2009_2014_2019_2024 %>%
+l_ellenzek_2019_2024 <- list()
+l_ellenzek_2019_2024$listak <- ep_telepules_eredmenyek_2009_2014_2019_2024 %>%
   filter(EV %in% c(2019,2024) & !grepl("Mi H|FIDESZ|MUNK|MEMO",LISTA)) %>%
   group_by(EV,LISTA) %>%
   summarise(EV=unique(EV),
             LISTA=gsub("Párbeszéd","PM",unique(LISTA)) )
 # gsub("LMP+","LMP+\n",gsub(" Párt","",gsub("Párbeszéd","PM",unique(LISTA)))) )
 
-ellenzek_2019_24_caption <- paste0("ellenzék 2019=",
-       paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2019]),collapse="+"),"\n",
+l_ellenzek_2019_2024$captions <- paste0("ellenzék 2019=",
+       paste0(with(l_ellenzek_2019_2024$listak,LISTA[EV==2019]),collapse="+"),"\n",
        "ellenzék 2024=",
-       paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2024]),collapse="+"))
+       paste0(with(l_ellenzek_2019_2024$listak,LISTA[EV==2024]),collapse="+"))
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # orszagos adatok
@@ -108,7 +110,7 @@ l_orszagos$eredmenyek %>%
 ggplot(aes(y=EV_csoport,x=value)) + 
   facet_wrap(~valt_tipus,scales = "free_x",nrow=2) +
   geom_bar(aes(fill=LISTA),stat="identity",position="stack",color="black",width=9/10) + # 
-  labs(fill="Pártlisták",caption=ellenzek_2019_24_caption) +
+  labs(fill="Pártlisták",caption=l_ellenzek_2019_2024$captions) +
   geom_text(data=l_orszagos$text,aes(label=signif(value,ifelse(grepl("szav",valt_tipus),4,3))),
             hjust=-0.1,size=6) +
   scale_x_continuous(expand = expansion(mult=c(0.01/2,0.08))) +
@@ -134,23 +136,23 @@ l_plot_fidesz_indiv_telep$eredmeny <- ep_telepules_eredmenyek_2009_2014_2019_202
   select(!n_valpolg_nevjegyz_2019) %>% 
   rename(n_valpolg_nevjegyz=n_valpolg_nevjegyz_2024) %>%
   mutate(telep_meret=factor(case_when(
-    n_valpolg_nevjegyz<=l_telep_meretek$upp_lims[1] ~ l_telep_meretek$nevek[1],
-    n_valpolg_nevjegyz>l_telep_meretek$low_lims[2] & 
-      n_valpolg_nevjegyz<=l_telep_meretek$upp_lims[2] ~ l_telep_meretek$nevek[2],
-    n_valpolg_nevjegyz>l_telep_meretek$low_lims[3] & 
-      n_valpolg_nevjegyz<=l_telep_meretek$upp_lims[3] ~ l_telep_meretek$nevek[3], 
-    n_valpolg_nevjegyz>l_telep_meretek$low_lims[4] & n_valpolg_nevjegyz<=l_telep_meretek$upp_lims[4] & 
-      !grepl("Budap",TELEPÜLÉS) ~ l_telep_meretek$nevek[4], # 
-    n_valpolg_nevjegyz>l_telep_meretek$low_lims[5] & 
-              n_valpolg_nevjegyz<=l_telep_meretek$upp_lims[5] & 
-      !grepl("Budap",TELEPÜLÉS) ~ l_telep_meretek$nevek[5], # 
-    n_valpolg_nevjegyz>l_telep_meretek$low_lims[6] & 
-      n_valpolg_nevjegyz<=l_telep_meretek$upp_lims[6] & 
-      !grepl("Budap",TELEPÜLÉS) ~ l_telep_meretek$nevek[6],
-    n_valpolg_nevjegyz>l_telep_meretek$low_lims[7] & 
-      !grepl("Budap",TELEPÜLÉS) ~ l_telep_meretek$nevek[7],
-    grepl("Budap",TELEPÜLÉS) ~ l_telep_meretek$nevek[8]),
-    levels=l_telep_meretek$nevek)) %>%
+    n_valpolg_nevjegyz<=l_telep$meretek$upp_lims[1] ~ l_telep$meretek$nevek[1],
+    n_valpolg_nevjegyz>l_telep$meretek$low_lims[2] & 
+      n_valpolg_nevjegyz<=l_telep$meretek$upp_lims[2] ~ l_telep$meretek$nevek[2],
+    n_valpolg_nevjegyz>l_telep$meretek$low_lims[3] & 
+      n_valpolg_nevjegyz<=l_telep$meretek$upp_lims[3] ~ l_telep$meretek$nevek[3], 
+    n_valpolg_nevjegyz>l_telep$meretek$low_lims[4] & n_valpolg_nevjegyz<=l_telep$meretek$upp_lims[4] & 
+      !grepl("Budap",TELEPÜLÉS) ~ l_telep$meretek$nevek[4], # 
+    n_valpolg_nevjegyz>l_telep$meretek$low_lims[5] & 
+              n_valpolg_nevjegyz<=l_telep$meretek$upp_lims[5] & 
+      !grepl("Budap",TELEPÜLÉS) ~ l_telep$meretek$nevek[5], # 
+    n_valpolg_nevjegyz>l_telep$meretek$low_lims[6] & 
+      n_valpolg_nevjegyz<=l_telep$meretek$upp_lims[6] & 
+      !grepl("Budap",TELEPÜLÉS) ~ l_telep$meretek$nevek[6],
+    n_valpolg_nevjegyz>l_telep$meretek$low_lims[7] & 
+      !grepl("Budap",TELEPÜLÉS) ~ l_telep$meretek$nevek[7],
+    grepl("Budap",TELEPÜLÉS) ~ l_telep$meretek$nevek[8]),
+    levels=l_telep$meretek$nevek)) %>%
   mutate(delta_szazalek=szazalek_2024-szazalek_2019,
          valtozas_szazalek=ifelse(szazalek_2019>szazalek_2024,"csökkent","nőtt"),
          delta_szavazat=SZAVAZAT_2024-SZAVAZAT_2019,
@@ -182,7 +184,7 @@ l_plot_fidesz_indiv_telep$df_text = left_join(
            szazalek_2024>50 & n_valpolg_nevjegyz > 1e4) %>%
   group_by(TELEPÜLÉS) %>% 
   mutate(xadj=szazalek_2024,TELEPÜLÉS=gsub("Budapest ","",TELEPÜLÉS)),
-  telep_roviditesek) %>% ungroup() %>%
+  l_telep$roviditesek) %>% ungroup() %>%
   mutate(telep_rovid=ifelse(is.na(telep_rovid),TELEPÜLÉS,telep_rovid)) %>% 
   select(!TELEPÜLÉS) %>% rename(TELEPÜLÉS=telep_rovid)
 
@@ -246,7 +248,7 @@ l_plot_fidesz_indiv_telep$valtozas$df_text <- left_join(
   l_plot_fidesz_indiv_telep$eredmeny %>% 
     filter(grepl("Budapest",telep_meret) | n_valpolg_nevjegyz>10e3 | 
              (n_valpolg_nevjegyz>5e3 & delta_szazalek>0) ), 
-  telep_roviditesek) %>% ungroup() %>%
+  l_telep$roviditesek) %>% ungroup() %>%
   mutate(telep_rovid=ifelse(is.na(telep_rovid),TELEPÜLÉS,telep_rovid)) %>% 
   select(!TELEPÜLÉS) %>% rename(TELEPÜLÉS=telep_rovid)
   
@@ -319,23 +321,23 @@ l_plot_swing_indiv_telep$df_2019_24_swing_telep <- ep_telepules_eredmenyek_2009_
               values_from=c(szavszam_kulonbseg,szazalek_kulonbseg,n_valpolg_nevjegyz)) %>%
   select(!n_valpolg_nevjegyz_2019) %>% rename(n_valpolg_nevjegyz=n_valpolg_nevjegyz_2024) %>%
   mutate(telep_meret=factor(case_when(
-    n_valpolg_nevjegyz<=l_telep_meretek$upp_lims[1] ~ l_telep_meretek$nevek[1],
-    n_valpolg_nevjegyz>l_telep_meretek$low_lims[2] & 
-      n_valpolg_nevjegyz<=l_telep_meretek$upp_lims[2] ~ l_telep_meretek$nevek[2],
-    n_valpolg_nevjegyz>l_telep_meretek$low_lims[3] & 
-      n_valpolg_nevjegyz<=l_telep_meretek$upp_lims[3] ~ l_telep_meretek$nevek[3], 
-    n_valpolg_nevjegyz>l_telep_meretek$low_lims[4] & n_valpolg_nevjegyz<=l_telep_meretek$upp_lims[4] & 
-      !grepl("Budap",TELEPÜLÉS) ~ l_telep_meretek$nevek[4], # 
-    n_valpolg_nevjegyz>l_telep_meretek$low_lims[5] & 
-      n_valpolg_nevjegyz<=l_telep_meretek$upp_lims[5] & 
-      !grepl("Budap",TELEPÜLÉS) ~ l_telep_meretek$nevek[5], # 
-    n_valpolg_nevjegyz>l_telep_meretek$low_lims[6] & 
-      n_valpolg_nevjegyz<=l_telep_meretek$upp_lims[6] & 
-      !grepl("Budap",TELEPÜLÉS) ~ l_telep_meretek$nevek[6],
-    n_valpolg_nevjegyz>l_telep_meretek$low_lims[7] & 
-      !grepl("Budap",TELEPÜLÉS) ~ l_telep_meretek$nevek[7],
-    grepl("Budap",TELEPÜLÉS) ~ l_telep_meretek$nevek[8]),
-    levels=l_telep_meretek$nevek)) %>%
+    n_valpolg_nevjegyz<=l_telep$meretek$upp_lims[1] ~ l_telep$meretek$nevek[1],
+    n_valpolg_nevjegyz>l_telep$meretek$low_lims[2] & 
+      n_valpolg_nevjegyz<=l_telep$meretek$upp_lims[2] ~ l_telep$meretek$nevek[2],
+    n_valpolg_nevjegyz>l_telep$meretek$low_lims[3] & 
+      n_valpolg_nevjegyz<=l_telep$meretek$upp_lims[3] ~ l_telep$meretek$nevek[3], 
+    n_valpolg_nevjegyz>l_telep$meretek$low_lims[4] & n_valpolg_nevjegyz<=l_telep$meretek$upp_lims[4] & 
+      !grepl("Budap",TELEPÜLÉS) ~ l_telep$meretek$nevek[4], # 
+    n_valpolg_nevjegyz>l_telep$meretek$low_lims[5] & 
+      n_valpolg_nevjegyz<=l_telep$meretek$upp_lims[5] & 
+      !grepl("Budap",TELEPÜLÉS) ~ l_telep$meretek$nevek[5], # 
+    n_valpolg_nevjegyz>l_telep$meretek$low_lims[6] & 
+      n_valpolg_nevjegyz<=l_telep$meretek$upp_lims[6] & 
+      !grepl("Budap",TELEPÜLÉS) ~ l_telep$meretek$nevek[6],
+    n_valpolg_nevjegyz>l_telep$meretek$low_lims[7] & 
+      !grepl("Budap",TELEPÜLÉS) ~ l_telep$meretek$nevek[7],
+    grepl("Budap",TELEPÜLÉS) ~ l_telep$meretek$nevek[8]),
+    levels=l_telep$meretek$nevek)) %>%
   mutate(delta_szazalek=szazalek_kulonbseg_2024-szazalek_kulonbseg_2019,
          valtozas_szazalek=ifelse(szazalek_kulonbseg_2019>szazalek_kulonbseg_2024, "ellenzéki erősödés",
                                   "FIDESZ erősödés"),
@@ -370,7 +372,7 @@ l_plot_swing_indiv_telep$szavazatszam$df_text = left_join(
   group_by(TELEPÜLÉS) %>%
   mutate(xadj=szavszam_kulonbseg_2019/1e3,
          TELEPÜLÉS=gsub("Budapest ","",TELEPÜLÉS)),
-  telep_roviditesek) %>% ungroup() %>%
+  l_telep$roviditesek) %>% ungroup() %>%
   mutate(telep_rovid=ifelse(is.na(telep_rovid),TELEPÜLÉS,telep_rovid)) %>% 
   select(!TELEPÜLÉS) %>% rename(TELEPÜLÉS=telep_rovid)
 
@@ -393,9 +395,9 @@ ggplot(aes(color=valtozas_szavazat)) +
   geom_vline(xintercept = 0,linewidth=2/3,color="black") +
   labs(color="szavazatszám-\nkülönbség (2024)",alpha="szavazatszám-\nkülönbség (2024)",
        caption=paste0("ellenzék 2019=",
-                      paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2019]),collapse="+"),"\n",
+                      paste0(with(l_ellenzek_2019_2024$listak,LISTA[EV==2019]),collapse="+"),"\n",
                       "ellenzék 2024=",
-                      paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2024]),collapse="+")) ) +
+                      paste0(with(l_ellenzek_2019_2024$listak,LISTA[EV==2024]),collapse="+")) ) +
   scale_color_manual(values = c("#013E7F","#B33C00")) + 
   scale_alpha_manual(values = c(1/2,1)) +
   xlab("szavazatszám-különbség (ezer) 2019→2024") +
@@ -423,7 +425,7 @@ l_plot_swing_indiv_telep$szavazatszam$df_text_fideszelony <- left_join(
            (n_valpolg_nevjegyz>10e3 & szavszam_kulonbseg_2024>0) ) %>%
   group_by(TELEPÜLÉS) %>%
   mutate(xadj=szavszam_kulonbseg_2019/1e3,
-         TELEPÜLÉS=gsub("Budapest ","",TELEPÜLÉS)), telep_roviditesek) %>% 
+         TELEPÜLÉS=gsub("Budapest ","",TELEPÜLÉS)), l_telep$roviditesek) %>% 
   ungroup() %>%
   mutate(telep_rovid=ifelse(is.na(telep_rovid),TELEPÜLÉS,telep_rovid)) %>% 
   select(!TELEPÜLÉS) %>% rename(TELEPÜLÉS=telep_rovid)
@@ -447,8 +449,8 @@ ggplot(aes(color=valtozas_szavazat)) +
   geom_vline(xintercept = 0,linewidth=2/3,color="black") +
   labs(color="szavazatszám-\nkülönbség (2024)",alpha="szavazatszám-\nkülönbség (2024)",
        caption=paste0("ellenzék 2019=",
-            paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2019]),collapse="+"),"\n",
-                  "ellenzék 2024=",paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2024]),collapse="+")) ) + 
+            paste0(with(l_ellenzek_2019_2024$listak,LISTA[EV==2019]),collapse="+"),"\n",
+                  "ellenzék 2024=",paste0(with(l_ellenzek_2019_2024$listak,LISTA[EV==2024]),collapse="+")) ) + 
   scale_color_manual(values = c("#013E7F","#B33C00")) + 
   scale_alpha_manual(values = c(1/2,1)) +
   xlab("szavazatszám-különbség (ezer) 2019→2024") +
@@ -487,7 +489,7 @@ l_plot_swing_indiv_telep$szazalek$df_text <- left_join(
          TELEPÜLÉS=gsub("Budapest ","",TELEPÜLÉS)) %>%
   select(sorrend,TELEPÜLÉS,telep_meret,n_valpolg_nevjegyz,valtozas_szazalek,
          szazalek_kulonbseg_2019,szazalek_kulonbseg_2024,xadj), 
-  telep_roviditesek) %>% 
+  l_telep$roviditesek) %>% 
   ungroup() %>%
   mutate(telep_rovid=ifelse(is.na(telep_rovid),TELEPÜLÉS,telep_rovid)) %>% 
   select(!TELEPÜLÉS) %>% rename(TELEPÜLÉS=telep_rovid)
@@ -508,8 +510,8 @@ ggplot(aes(color=valtozas_szazalek)) +
             size=4.5,show.legend=F,alpha=1) +
   geom_vline(xintercept = 0,linewidth=2/3,color="black") +
   labs(color="",alpha="",caption=paste0("ellenzék 2019=",
-          paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2019]),collapse="+"),"\n",
-          "ellenzék 2024=",paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2024]),collapse="+"))) + 
+          paste0(with(l_ellenzek_2019_2024$listak,LISTA[EV==2019]),collapse="+"),"\n",
+          "ellenzék 2024=",paste0(with(l_ellenzek_2019_2024$listak,LISTA[EV==2024]),collapse="+"))) + 
   scale_color_manual(values = c("#013E7F","#B33C00")) + # ,"#B33C00"
   scale_alpha_manual(values = c(1/2,1)) +
   xlab("százalék-különbség 2019→2024") +
@@ -535,7 +537,7 @@ l_plot_swing_indiv_telep$szazalek$df_text_fideszelony <- left_join(
          TELEPÜLÉS=gsub("Budapest ","",TELEPÜLÉS)) %>%
   select(sorrend,TELEPÜLÉS,telep_meret,n_valpolg_nevjegyz,valtozas_szazalek,
          szazalek_kulonbseg_2019,szazalek_kulonbseg_2024,xadj), 
-  telep_roviditesek) %>% 
+  l_telep$roviditesek) %>% 
   ungroup() %>%
   mutate(telep_rovid=ifelse(is.na(telep_rovid),TELEPÜLÉS,telep_rovid)) %>% 
   select(!TELEPÜLÉS) %>% rename(TELEPÜLÉS=telep_rovid)
@@ -559,8 +561,8 @@ ggplot(aes(color=valtozas_szazalek)) +
             size=4.5,show.legend=F,alpha=1) +
   geom_vline(xintercept = 0,linewidth=2/3,color="black") +
   labs(color="",alpha="",caption=paste0("ellenzék 2019=",
-                paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2019]),collapse="+"),"\n",
-                "ellenzék 2024=",paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2024]),collapse="+"))) + 
+                paste0(with(l_ellenzek_2019_2024$listak,LISTA[EV==2019]),collapse="+"),"\n",
+                "ellenzék 2024=",paste0(with(l_ellenzek_2019_2024$listak,LISTA[EV==2024]),collapse="+"))) + 
   scale_color_manual(values=c("#013E7F","#B33C00")) +
   scale_alpha_manual(values=c(1/2,1)) +
   xlab("százalék-különbség 2019→2024") +
@@ -603,24 +605,24 @@ l_fidesz_krit_telepszam <- ep_telepules_eredmenyek_2009_2014_2019_2024 %>%
             ellenzek_szazalek=szazalek[grepl("ellenz",lista_aggreg)],
             n_valpolg_nevjegyz=unique(n_valpolg_nevjegyz)) %>%
   mutate(telep_meret=factor(case_when(
-    n_valpolg_nevjegyz[EV==2024]<=l_telep_meretek$upp_lims[1] ~ l_telep_meretek$nevek[1],
-    n_valpolg_nevjegyz[EV==2024]>l_telep_meretek$low_lims[2] & 
-      n_valpolg_nevjegyz[EV==2024]<=l_telep_meretek$upp_lims[2] ~ l_telep_meretek$nevek[2],
-    n_valpolg_nevjegyz[EV==2024]>l_telep_meretek$low_lims[3] & 
-      n_valpolg_nevjegyz[EV==2024]<=l_telep_meretek$upp_lims[3] ~ l_telep_meretek$nevek[3], 
-    n_valpolg_nevjegyz[EV==2024]>l_telep_meretek$low_lims[4] & 
-      n_valpolg_nevjegyz[EV==2024]<=l_telep_meretek$upp_lims[4] & 
-      !grepl("Budap",TELEPÜLÉS) ~ l_telep_meretek$nevek[4], # 
-    n_valpolg_nevjegyz[EV==2024]>l_telep_meretek$low_lims[5] & 
-      n_valpolg_nevjegyz[EV==2024]<=l_telep_meretek$upp_lims[5] & 
-      !grepl("Budap",TELEPÜLÉS) ~ l_telep_meretek$nevek[5], # 
-    n_valpolg_nevjegyz[EV==2024]>l_telep_meretek$low_lims[6] & 
-      n_valpolg_nevjegyz[EV==2024]<=l_telep_meretek$upp_lims[6] & 
-      !grepl("Budap",TELEPÜLÉS) ~ l_telep_meretek$nevek[6],
-    n_valpolg_nevjegyz[EV==2024]>l_telep_meretek$low_lims[7] & 
-      !grepl("Budap",TELEPÜLÉS) ~ l_telep_meretek$nevek[7],
-    grepl("Budap",TELEPÜLÉS) ~ l_telep_meretek$nevek[8]),
-    levels=l_telep_meretek$nevek)) %>% 
+    n_valpolg_nevjegyz[EV==2024]<=l_telep$meretek$upp_lims[1] ~ l_telep$meretek$nevek[1],
+    n_valpolg_nevjegyz[EV==2024]>l_telep$meretek$low_lims[2] & 
+      n_valpolg_nevjegyz[EV==2024]<=l_telep$meretek$upp_lims[2] ~ l_telep$meretek$nevek[2],
+    n_valpolg_nevjegyz[EV==2024]>l_telep$meretek$low_lims[3] & 
+      n_valpolg_nevjegyz[EV==2024]<=l_telep$meretek$upp_lims[3] ~ l_telep$meretek$nevek[3], 
+    n_valpolg_nevjegyz[EV==2024]>l_telep$meretek$low_lims[4] & 
+      n_valpolg_nevjegyz[EV==2024]<=l_telep$meretek$upp_lims[4] & 
+      !grepl("Budap",TELEPÜLÉS) ~ l_telep$meretek$nevek[4], # 
+    n_valpolg_nevjegyz[EV==2024]>l_telep$meretek$low_lims[5] & 
+      n_valpolg_nevjegyz[EV==2024]<=l_telep$meretek$upp_lims[5] & 
+      !grepl("Budap",TELEPÜLÉS) ~ l_telep$meretek$nevek[5], # 
+    n_valpolg_nevjegyz[EV==2024]>l_telep$meretek$low_lims[6] & 
+      n_valpolg_nevjegyz[EV==2024]<=l_telep$meretek$upp_lims[6] & 
+      !grepl("Budap",TELEPÜLÉS) ~ l_telep$meretek$nevek[6],
+    n_valpolg_nevjegyz[EV==2024]>l_telep$meretek$low_lims[7] & 
+      !grepl("Budap",TELEPÜLÉS) ~ l_telep$meretek$nevek[7],
+    grepl("Budap",TELEPÜLÉS) ~ l_telep$meretek$nevek[8]),
+    levels=l_telep$meretek$nevek)) %>% 
   group_by(TELEPÜLÉS,telep_meret) %>%
   summarise(
             # fidesz_szaz_nott=fidesz_szazalek[EV==2024]>=fidesz_szazalek[EV==2019],
@@ -672,9 +674,9 @@ ggplot(aes(y=plot_name)) + facet_wrap(~telep_meret_szam,scales="free_x") +
             aes(x=x_pos,label=n_telep_krit),size=5) +
   geom_vline(aes(xintercept=n_telep_ossz) ) +
   labs(caption=paste0("ellenzék 2019=",
-        paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2019]),collapse="+"),"\n",
+        paste0(with(l_ellenzek_2019_2024$listak,LISTA[EV==2019]),collapse="+"),"\n",
          "ellenzék 2024=",
-        paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2024]),collapse="+")) ) + 
+        paste0(with(l_ellenzek_2019_2024$listak,LISTA[EV==2024]),collapse="+")) ) + 
   xlab("települések száma") + ylab("") + theme_bw() + val_theme
 # SAVE
 if (T) {
@@ -750,7 +752,7 @@ ggplot(aes(y=y_pos,group=lista_osszes,color=lista_osszes)) +
   scale_y_continuous(breaks=1/2+(0:7),
                      labels=with(ep_2019_2024_fidesz_ellenzek_nvalpolg_kateg,levels(telep_meret))) +
   labs(color="2019→2024 változás",fill="2019 eredmény",
-       caption=ellenzek_2019_24_caption ) + 
+       caption=l_ellenzek_2019_2024$captions ) + 
   xlab("") + ylab("választópolgárok száma") +
   theme_bw() + val_theme + theme(plot.caption=element_text(size=12),
                                  plot.caption.position="plot")
@@ -792,7 +794,7 @@ ggplot(aes(y=telep_meret)) +
                 hjust=ifelse(fidesz_ellenzek_diff_2024>fidesz_ellenzek_diff_2019,-0.1,1.15)),size=5) +
   geom_hline(yintercept=(1:7)+1/2,linetype="dashed",linewidth=2/3) +
   geom_vline(aes(xintercept=0)) +
-  labs(color="",fill="2019",caption=ellenzek_2019_24_caption) +
+  labs(color="",fill="2019",caption=l_ellenzek_2019_2024$captions) +
   ggtitle("FIDESZ-KDNP vs ellenzék különbség változás 2019→2024 \n (pozitív értékek: FIDESZ-KDNP előny)") +
   xlab("") + ylab("választópolgárok száma") +
   # scale_x_continuous(breaks=c(-150,-50,0,50,150,c(-20,-10,10,20)) ) +
@@ -835,8 +837,8 @@ ggplot(aes(y=y_pos,group=lista_osszes,color=lista_osszes)) +
   scale_y_continuous(breaks=1/2+(0:7),
                      labels=with(ep_2019_2024_fidesz_ellenzek_nvalpolg_kateg,levels(telep_meret))) +
   labs(color="2019→2024 változás",fill="2019 eredmény", caption=paste0("ellenzék 2019=",
-    paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2019]),collapse="+"),"\n",
-      "ellenzék 2024=",paste0(with(ellenzek_listak_2019_2024,LISTA[EV==2024]),collapse="+"))) + 
+    paste0(with(l_ellenzek_2019_2024$listak,LISTA[EV==2019]),collapse="+"),"\n",
+      "ellenzék 2024=",paste0(with(l_ellenzek_2019_2024$listak,LISTA[EV==2024]),collapse="+"))) + 
   xlab("") + ylab("választópolgárok száma") +
   theme_bw() + val_theme + theme(legend.title=element_text(size=20),
     legend.text=element_text(size=14),
@@ -900,7 +902,7 @@ l_plot_fidesz_ellenz_indiv_telep$kul <- left_join(
          point_size=case_when(n_oevk_megye>12 ~ 4, 
                               n_oevk_megye>8 ~ 6.5,
                               n_oevk_megye>5 ~ 7, .default=12)),
-  telep_roviditesek %>% rename(KOZPONT=TELEPÜLÉS)) %>%
+  l_telep$roviditesek %>% rename(KOZPONT=TELEPÜLÉS)) %>%
   ungroup() %>%
   mutate(telep_rovid=ifelse(is.na(telep_rovid),KOZPONT,telep_rovid)) %>% 
   select(!KOZPONT) %>% rename(KOZPONT=telep_rovid)
