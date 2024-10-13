@@ -10,8 +10,8 @@
 
 library(tidyverse)
 
-  # 2024
-  ep2024_szavazokori_eredmenyek <- lapply(
+# 2024
+ep2024_szavazokori_eredmenyek <- lapply(
     list.files("2024_EP/szavazokori_eredmenyek/",pattern="szavaz"), 
       function(x) read_csv(file = paste0("2024_EP/szavazokori_eredmenyek/",x)) %>% 
     mutate(megye=strsplit(x,split = "_|.csv")[[1]][2]) ) %>%
@@ -254,23 +254,3 @@ write_csv(oevk_telep_szavkor_sorszam,"oevk_telep_szavkor_sorszam.csv")
 #          # TELEPÜLÉS=str_to_title(TELEPÜLÉS),
 #          MEGYE=str_to_title(MEGYE))
 oevk_telep_szavkor_lista <- read_csv("oevk_telep_szavkor_lista.csv")
-
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
-# terkep
-library(jsonlite); library(sf)
-
-# source for geoJSON files: https://github.com/szabokrissz96/valterk
-
-my_sf <- read_sf(c("../ogy_eredmenyek/oevk.geo.json",
-                   "../ogy_eredmenyek/oevk.min.geo.json",
-                   "../ogy_eredmenyek/counties.geojson",
-                   "../ogy_eredmenyek/valasztokerulet_terkep_final3.geojson")[4])
-
-plot(st_geometry(my_sf))
-st_is_valid(my_sf,reason=T)
-st_make_valid(my_sf)
-
-#
-library(geojsonR)
-file_js = FROM_GeoJson(url_file_string ="../oevk.geo.json")
-file_js
